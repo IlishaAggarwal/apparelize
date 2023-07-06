@@ -1,147 +1,35 @@
-import {
-  Layout,
-  Image,
-  Link,
-  Text,
-} from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
-import { useTranslation, Trans } from "react-i18next";
-import React, { useEffect, useState } from "react";
-import { Page } from "@shopify/polaris";
-import {Provider, ResourcePicker} from '@shopify/app-bridge-react';
-// import ReactDOM from 'react-dom';
-  
+import React, { useEffect, useState } from 'react';
 
+function OrderList() {
+  const [orderIds, setOrderIds] = useState([]);
 
-import { trophyImage } from "../assets";
-
-import { ProductsCard } from "../components";
-
-
-const productId = "11235813213455";
-// `session` is built as part of the OAuth process
-const client = new shopify.clients.Rest({session});
-const product = await client.get({
-  path: `products/${productId}`,
-  query: {id: 1, title: "title"}
-});
-
-
-export default function HomePage() {
-  const [open, setOpen] = useState(false);
-
-  function handleSelection(resources) {
-    const idsFromResources = resources.selection.map((product) => product.id);
-    // Do something with the selected order ids
-  }
-  // const { t } = useTranslation();
-
-  const fetchOrders = async () => {
-    try {
-      const orders = await shopify.order.list({ limit: 5 });
-      console.log(orders);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-  
-  fetchOrders();
+  useEffect(() => {
+    fetch('https://2bb4-140-82-222-70.ngrok-free.app/api/orders') // replace with your actual server URL
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("HTTP error " + response.status);
+        }
+        console.log('Orders here:')
+        console.log(response)
+        return response.json();
+      })
+      .then(data => {
+        const ids = data.map(order => order.id);
+        setOrderIds(ids);
+      })
+      .catch(function() {
+        console.log("An error occurred while fetching the order IDs.");
+      });
+  }, []);
 
   return (
-    
-    // <Page narrowWidth>
-    //   <TitleBar title={t("HomePage.title")} primaryAction={null} />
-    //   <Layout>
-    //     <Layout.Section>
-    //       <Card sectioned>
-    //         <Stack
-    //           wrap={false}
-    //           spacing="extraTight"
-    //           distribution="trailing"
-    //           alignment="center"
-    //         >
-    //           <Stack.Item fill>
-    //             <TextContainer spacing="loose">
-    //               <Text as="h2" variant="headingMd">
-    //                 {t("HomePage.heading")}
-    //               </Text>
-    //               <p>
-    //                 <Trans
-    //                   i18nKey="HomePage.yourAppIsReadyToExplore"
-    //                   components={{
-    //                     PolarisLink: (
-    //                       <Link url="https://polaris.shopify.com/" external />
-    //                     ),
-    //                     AdminApiLink: (
-    //                       <Link
-    //                         url="https://shopify.dev/api/admin-graphql"
-    //                         external
-    //                       />
-    //                     ),
-    //                     AppBridgeLink: (
-    //                       <Link
-    //                         url="https://shopify.dev/apps/tools/app-bridge"
-    //                         external
-    //                       />
-    //                     ),
-    //                   }}
-    //                 />
-    //               </p>
-    //               <p>{t("HomePage.startPopulatingYourApp")}</p>
-    //               <p>
-    //                 <Trans
-    //                   i18nKey="HomePage.learnMore"
-    //                   components={{
-    //                     ShopifyTutorialLink: (
-    //                       <Link
-    //                         url="https://shopify.dev/apps/getting-started/add-functionality"
-    //                         external
-    //                       />
-    //                     ),
-    //                   }}
-    //                 />
-    //               </p>
-    //             </TextContainer>
-    //           </Stack.Item>
-    //           <Stack.Item>
-    //             <div style={{ padding: "0 20px" }}>
-    //               <Image
-    //                 source={trophyImage}
-    //                 alt={t("HomePage.trophyAltText")}
-    //                 width={120}
-    //               />
-    //             </div>
-    //           </Stack.Item>
-    //         </Stack>
-    //       </Card>
-    //     </Layout.Section>
-    //     <Layout.Section>
-    //       <ProductsCard />
-    //     </Layout.Section>
-    //   </Layout>
-    // </Page>
-   <div>
-<h1>hello</h1>
-  
-    {/* <Provider config={config}>  */}
-      <ResourcePicker resourceType="Order" open />
-     {/* </Provider>  */}
-    {/* <button type="button" onClick={() => setOpen(true)}>
-        Select Orders
-      </button>
-      <ResourcePicker
-        resourceType="Order"
-        open={open}
-        onCancel={() => setOpen(false)}
-        onSelection={(resources) => handleSelection(resources)}
-        showVariants={false}
-      /> */}
-   </div> 
-    
-    
+    <div>
+      <h1>Order IDs</h1>
+      <ul>
+        {orderIds.map(id => <li key={id}>{id}</li>)}
+      </ul>
+    </div>
   );
 }
 
-
-
-  
+export default OrderList;

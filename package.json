@@ -15,6 +15,7 @@
     "@shopify/app": "3.47.2",
     "@shopify/cli": "3.47.2",
     "@shopify/shopify-api": "^7.4.0",
+    "ngrok": "^5.0.0-beta.2",
     "shopify-api-node": "^3.12.5"
   },
   "author": "ilishaaggarwal",
