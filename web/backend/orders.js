@@ -31,12 +31,24 @@ app.post('/webhook', (req, res) => {
 
   // Handle the webhook event
 
-  console.log('Fulfillment created:');
-  // console.log(req.body);
+  console.log('Post Webhook: Fulfillment created:');
+  console.log(req.body);
 
   // Perform any desired actions with the order details
 
   res.status(200).send(req.body);// Respond with a success status code
+});
+
+app.get('/webhook', (req, res) => {
+ 
+
+  // Handle the webhook event
+
+  console.log();
+
+  // Perform any desired actions with the order details
+
+  res.status(200).send('This is the GET Webhook');// Respond with a success status code
 });
 
 app.get('/api/orders', async (req, res) => {
