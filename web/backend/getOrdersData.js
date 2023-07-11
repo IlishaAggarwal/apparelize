@@ -34,7 +34,28 @@ export async function getOrdersData() {
     }
   `;
 
-  const queryData = await graphQLClient.request(query);
-  console.log(queryData)
-  return queryData; // Return the JSON data instead of logging it
+  // const queryData = await graphQLClient.request(query);
+  // console.log(queryData)
+  // return queryData; // Return the JSON data instead of logging it
+
+  try {
+    const queryData = await graphQLClient.request(query);
+    const orders = queryData.orders.edges;
+
+    // Loop through the orders and access the values
+    orders.forEach((order) => {
+      const orderId = order.node.id;
+      const metafields = order.node.metafields.edges;
+
+      console.log('Order ID:', orderId);
+      console.log('Metafields:', metafields);
+    });
+
+    return queryData;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
+
 }
+getOrdersData();

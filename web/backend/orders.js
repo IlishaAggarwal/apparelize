@@ -1,10 +1,13 @@
 import express from 'express';
+import bodyParser from 'body-parser';
 import cors from 'cors';
 import Shopify from 'shopify-api-node';
 import ngrok from 'ngrok';
 
 const app = express();
+const port = 3000;
 
+app.use(bodyParser.json());
 
 const corsOptions = {
   origin: 'https://stated-comp-aquatic-chat.trycloudflare.com', // Replace with your frontend origin
@@ -12,7 +15,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
 
 const shopName = 'zatca';  
 const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';      
@@ -22,6 +24,19 @@ const shopify = new Shopify({
   shopName: shopName,
   apiKey: apiKey,
   password: password
+});
+
+app.get('/webhook', (req, res) => {
+ 
+
+  // Handle the webhook event
+
+  console.log('Fulfillment created:');
+  console.log(req.body);
+
+  // Perform any desired actions with the order details
+
+  res.status(200).send('Hello');// Respond with a success status code
 });
 
 app.get('/api/orders', async (req, res) => {
@@ -35,7 +50,7 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-const port = 3000;
+
 app.listen(port, async () => {
   const url = await ngrok.connect(port);
   console.log(`Server is running on ${url}`);
