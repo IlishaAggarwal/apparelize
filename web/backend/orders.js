@@ -26,17 +26,17 @@ const shopify = new Shopify({
   password: password
 });
 
-app.get('/webhook', (req, res) => {
+app.post('/webhook', (req, res) => {
  
 
   // Handle the webhook event
 
   console.log('Fulfillment created:');
-  console.log(req.body);
+  // console.log(req.body);
 
   // Perform any desired actions with the order details
 
-  res.status(200).send('Hello');// Respond with a success status code
+  res.status(200).send(req.body);// Respond with a success status code
 });
 
 app.get('/api/orders', async (req, res) => {
@@ -52,6 +52,6 @@ app.get('/api/orders', async (req, res) => {
 
 
 app.listen(port, async () => {
-  const url = await ngrok.connect(port);
-  console.log(`Server is running on ${url}`);
+  // const url = await ngrok.connect(port);
+  console.log(`Server is running on ${port}`);
 });
