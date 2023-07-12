@@ -17,11 +17,6 @@ const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';
 const password = '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';
 const endpoint = 'https://zatca.myshopify.com/admin/api/2023-07/graphql.json';
 
-const shopify = new Shopify({
-  shopName: shopName,
-  apiKey: apiKey,
-  password: password
-});
 
 const headers = {
   'Content-Type': 'application/json',
@@ -38,7 +33,7 @@ app.post('/webhook', async (req, res) => {
   const current_subtotal_price = req.body.current_subtotal_price;
   const billing_address = JSON.stringify(req.body.billing_address);
   const customer_id = req.body.customer.id;
-
+  console.log(req.body.admin_graphql_api_id)
   console.log('\nPOST Fulfillment created:');
   console.log(`Fulfillment ID: ${order_Id}\n`);
   // console.log(`Created_at: ${created_at}`);
@@ -149,31 +144,65 @@ app.post('/webhook', async (req, res) => {
     ;
 
   try {
-    // Make the second API request using the relevant data
+    // Make the KSA API request using the relevant data
     const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=0', jsonData, { headers });
 
     // console.log('API Response', response.data);
-    console.log('Second API');
+    console.log('KSA API');
     console.log('API Response Invoice ID:', response.data.Data.InvoiceID);
-    console.log('API QR String:', response.data.Data.QRString,'\n');
+    console.log('API QR String:', response.data.Data.QRString, '\n');
 
     // Use the extracted data to construct the GraphQL mutation
     const metafieldKey = 'qr_code';
     const metafieldNamespace = 'custom'; // You can choose your desired namespace
 
     const mutation = gql`
-    mutation {
-      metafieldUpsert(input: {
-        id: "${order_Id}/${metafieldKey}"
-        namespace: "${metafieldNamespace}"
-        key: "${metafieldKey}"
-        value: "${response.data.Data.QRString}"
-        valueType: STRING
-      }) {
-        metafield {
-          id
-          key
-          value
+    mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+    metafields {
+      key
+      namespace
+      value
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
+    const variables = {
+      "metafields": [
+        {
+          "key": "qr_code",
+          "namespace": "custom",
+          "ownerId": `${req.body.admin_graphql_api_id}`,
+          // "type": "single_line_text_field",
+          "value": `${response.data.Data.QRString}`
+        }
+      ]
+    }
+
+    const query = gql`
+    query {
+      orders({id: "gid://shopify/Order/5363696894225" }: ID!) {
+        edges {
+          node {
+            id
+            metafields(first: 10) {
+              edges {
+                node {
+                  namespace
+                  key
+                  value
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -181,14 +210,15 @@ app.post('/webhook', async (req, res) => {
 
     // Perform the GraphQL mutation to update the order's metafield
     try {
-      const graphqlResponse = await graphQLClient.request(mutation);
-      console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
+      const graphqlResponse = await graphQLClient.request(mutation, variables);
+      console.log(JSON.stringify(graphqlResponse))
+      // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
     } catch (error) {
       console.error('Error updating metafield:', error);
     }
-  } catch (secondPostError) {
-    // Handle the second API POST error
-    console.error('Error making the second API request:', secondPostError);
+  } catch (ksaError) {
+    // Handle the KSA API POST error
+    console.error('Error making the KSA API request:', ksaError);
   }
 });
 
