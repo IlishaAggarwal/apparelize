@@ -43,7 +43,7 @@ app.post('/webhook', async (req, res) => {
     },
   });
 
-  const orderId = req.body.FulfillmentOrder.id;
+  const orderId = req.body.id;
 
   const query = gql`
   query getOrder($orderId: ID!) {
@@ -76,26 +76,38 @@ app.post('/webhook', async (req, res) => {
   console.log(`Customer_id: ${customer_id}`);
   console.log(`************************************************************************************************`);
 
-  try {
-    const queryData = await graphQLClient.request(query, { orderId: orderId });
-    const order = queryData.order;
+  try { const queryData = await graphQLClient.request(query, { orderId: orderId });
+  const order = queryData.order;
 
-    if (order) {
-      const orderId = order.id;
-      const metafields = order.metafields.edges;
+  if (order) {
+    const orderId = order.id;
+    const metafields = order.metafields.edges;
 
-      console.log('Order ID:', orderId);
-      console.log('Metafields:');
-      metafields.forEach((metafield) => {
-        const { key, value } = metafield.node;
-        console.log('Key:', key);
-        console.log('Value:', value);
+    console.log('Order ID:', orderId);
+    console.log('Metafields:');
+    metafields.forEach((metafield) => {
+      const { id, key, value } = metafield.node;
+      console.log('Metafield ID:', id);
+      console.log('Key:', key);
+      console.log('Value:', value);
+    });
+
+    // Update the specific metafield
+    const metafieldToUpdate = metafields.find(metafield => metafield.node.key === 'qr_code');
+    if (metafieldToUpdate) {
+      const updatedMetafield = await shopify.metafield.update({
+        id: metafieldToUpdate.node.id,
+        metafield: {
+          value: '123abc',
+        },
       });
-
-      res.status(200).send('Webhook received successfully');
-    } else {
-      res.status(404).send('Order not found');
+      console.log('Updated Metafield:', updatedMetafield);
     }
+
+    res.status(200).send('Webhook received successfully');
+  } else {
+    res.status(404).send('Order not found');
+  }
   } catch (error) {
     console.error(error);
     res.status(500).send('Internal Server Error');
