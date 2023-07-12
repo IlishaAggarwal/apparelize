@@ -1,0 +1,306 @@
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import Shopify from 'shopify-api-node';
+import ngrok from 'ngrok';
+import axios from 'axios';
+import xml2js from 'xml2js';
+import { GraphQLClient, gql } from 'graphql-request';
+import { Headers } from 'cross-fetch';
+
+global.Headers = global.Headers || Headers;
+
+const app = express();
+const port = 3000;
+
+app.use(bodyParser.json());
+
+const corsOptions = {
+  origin: 'https://stated-comp-aquatic-chat.trycloudflare.com', // Replace with your frontend origin
+  optionsSuccessStatus: 200, // Some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+app.use(cors(corsOptions));
+
+const shopName = 'zatca';
+const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';
+const password = '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';
+
+const shopify = new Shopify({
+  shopName: shopName,
+  apiKey: apiKey,
+  password: password
+});
+
+app.post('/webhook', async (req, res) => {
+
+  const endpoint = 'https://zatca.myshopify.com/admin/api/2023-07/graphql.json';
+
+  const graphQLClient = new GraphQLClient(endpoint, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': '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',
+    },
+  });
+
+  const order_Id = req.body.id;
+  const created_at = req.body.created_at;
+  const current_subtotal_price = req.body.current_subtotal_price;
+  const billing_address = JSON.stringify(req.body.billing_address);
+  const customer_id = req.body.customer.id;
+
+  console.log('POST Fulfillment created:');
+  console.log(`Fulfillment ID: ${order_Id}`);
+  // console.log(`Created_at: ${created_at}`);
+  // console.log(`Current_subtotal_price: ${current_subtotal_price}`);
+  // console.log(`Billing_address: ${billing_address}`);
+  // console.log(`Customer_id: ${customer_id}`);
+  console.log(`************************************************************************************`);
+      const jsonData = {
+        "Invoice": {
+          "Uniquekey": 9897634121,
+          "InvoiceNo": `${order_Id}`,
+          "InvoiceDate": "2023-04-20",
+          "InvoiceTime": "23:50:09",
+          "InvoiceTypeCode": 1,
+          "IsThirdPartyInvoice": 0,
+          "IsNominalInvoice": 0,
+          "IsExportInvoice": 0,
+          "IsSummaryInvoice": 0,
+          "IsSelfBilledInvoice": 0,
+          "Remarks": "VAT-C1-VAT-C1-1172187349-0 Due Date 15-03-2022 /Installments SC-",
+          "InvoiceCurrencyCode": "SAR",
+          "TaxCurrencyCode": "SAR",
+          "PONumber": 1172187349,
+          "Reference": {
+            "OriginalInvoiceNumber": 123,
+            "OriginalInvoiceDate": "",
+            "InstructionNote": "DFF"
+          },
+          "ContractNumber": 114409666,
+          "SellerID": "",
+          "SellerIDType": "VAT",
+          "SellerGroupVatNo": "",
+          "SellerStreetName": "Thumamah Road",
+          "SellerAdditionalStreetName": "King Abdallah Road",
+          "SellerBuildingNumber": 1234,
+          "SellerPlotIdentification": 6771,
+          "SellerCityName": "Riyadh",
+          "SellerPostalZone": 11517,
+          "SellerCountrySubentity": "Saudi Arabia",
+          "SellerCitySubdivisionName": "Thumamah",
+          "SellerCountryCode": "SA",
+          "SellerVatNumber": 300189262500003,
+          "SellerRegistrationName": "Vestige Marketing Pvt. Ltd.",
+          "BuyerIDType": "",
+          "BuyerGroupVatNo": "",
+          "BuyerStreetName": "24351,مكة",
+          "BuyerAdditionalStreetName": "-",
+          "BuyerBuildingNumber": "-",
+          "BuyerPlotIdentification": 1234,
+          "BuyerCityName": "Riyadh",
+          "BuyerPostalZone": 12345,
+          "BuyerCountrySubentity": "SA",
+          "BuyerCitySubdivisionName": "-",
+          "BuyerCountryCode": "SA",
+          "BuyerVATNumber": 323456789123453,
+          "BuyerRegistrationName": "ALYA ABDELAZIZ",
+          "ConversionRate": 0,
+          "Delivery": {
+            "ActualDeliveryDate": "2022-03-09",
+            "LatestDeliveryDate": "2022-03-10"
+          },
+          "PaymentMeans": {
+            "PaymentMeansCode": 25,
+            "PaymentNote": "Certified cheque"
+          },
+          "InvoiceDeductions": {
+            "AllowanceChargeReason": "",
+            "Amount": 0,
+            "BaseAmount": 0,
+            "Percent": 0,
+            "TaxCategoryCode": "",
+            "TaxPercent": ""
+          },
+          "InvoiceLine": {
+            "Sno": 1,
+            "Quantity": 1,
+            "UoM": "EA",
+            "LineAmountWithoutVAT": 0,
+            "ItemName": "Premium القـسـط",
+            "SellerItemCode": "",
+            "BuyerItemCode": "",
+            "StandardItemCode": "",
+            "TaxCategoryCode": "S",
+            "TaxExemptionReasonCode": "",
+            "Percent": 15,
+            "ItemPrice": 0,
+            "ItemBaseQuantity": 1,
+            "ItemBaseUoM": "EA",
+            "Deductions": {
+              "Percent": 0,
+              "Amount": 0,
+              "BaseAmount": "",
+              "AllowanceChargeReason": ""
+            },
+            "Tax": {
+              "TaxAmount": 0
+            },
+            "ItemDeductions": {
+              "Percent": 0,
+              "Amount": 0,
+              "BaseAmount": 0,
+              "AllowanceChargeReason": ""
+            }
+          }
+        }
+      }
+
+  // Convert the XML data to string
+    // const xmlBuilder = new xml2js.Builder();
+    // const xmlString = xmlBuilder.buildObject(xmlData);
+
+    // Set the headers to specify the content type as JSON
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+
+    // Send the JSON data to your API
+    const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=0', jsonData, { headers });
+
+    // console.log('API Response Invoice ID:', response.data);
+    console.log('API Response', response.data);
+    console.log('API Response Invoice ID:', response.data.Data.InvoiceID);
+    console.log('API QR String:', response.data.Data.QRString);
+
+
+//   const orderId = req.body.id;
+
+//   const query = gql`
+//   query getOrder($orderId: ID!) {
+//     order(id: $orderId) {
+//       id
+//       metafields(first: 10) {
+//         edges {
+//           node {
+//             namespace
+//             key
+//             value
+//           }
+//         }
+//       }
+//     }
+//   }
+// `;
+
+
+  // try { const queryData = await graphQLClient.request(query, { orderId: orderId });
+  // const order = queryData.order;
+
+  // if (order) {
+  //   const orderId = order.id;
+  //   const metafields = order.metafields.edges;
+
+  //   console.log('Order ID:', orderId);
+  //   console.log('Metafields:');
+  //   metafields.forEach((metafield) => {
+  //     const { id, key, value } = metafield.node;
+  //     console.log('Metafield ID:', id);
+  //     console.log('Key:', key);
+  //     console.log('Value:', value);
+  //   });
+
+  //   // Update the specific metafield
+  //   const metafieldToUpdate = metafields.find(metafield => metafield.node.key === 'qr_code');
+  //   if (metafieldToUpdate) {
+  //     const updatedMetafield = await shopify.metafield.update({
+  //       id: metafieldToUpdate.node.id,
+  //       metafield: {
+  //         value: '123abc',
+  //       },
+  //     });
+  //     console.log('Updated Metafield:', updatedMetafield);
+  //   }
+
+  //   res.status(200).send('Webhook received successfully');
+  // } else {
+  //   res.status(404).send('Order not found');
+  // }
+  // } catch (error) {
+  //   console.error(error);
+  //   res.status(500).send('Internal Server Error');
+  // }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+app.get('/webhook', (req, res) => {
+  console.log("GET Webhook");
+  res.status(200).send('This is the GET Webhook');// Respond with a success status code
+});
+
+app.listen(port, async () => {
+  // const url = await ngrok.connect(port);
+  console.log(`Server is running on ${port}`);
+});
+
+
+
+
+// var isFull = await client.query({
+        
+//   data: `{
+//     product(id: "${shopifyId}") {
+//        id
+//        title
+//        metafield(namespace:"custom", key:"myMetafield") {
+//          value
+//        }
+//       }
+//     }`
+// });
+
+
+
+
+//////////////////
+const metafieldKey = 'qr_code';
+const metafieldNamespace = 'custom'; // You can choose your desired namespace
+
+// Construct the metafield object
+const metafield = {
+  key: metafieldKey,
+  value: response.data.Data.QRString,
+  value_type: 'string',
+  namespace: metafieldNamespace
+};
+
+// Send the request to update the order's metafield
+axios.put(endpoint, { order: { metafields_attributes: [metafield] } }, {
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Shopify-Access-Token': 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
+  }
+})
+  .then(response => {
+    console.log('Metafield successfully updated:', response.data.order);
+  })
+  .catch(error => {
+    console.error('Error updating metafield:', error);
+  });
