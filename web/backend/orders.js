@@ -183,6 +183,13 @@ app.post('/webhook', async (req, res) => {
           "ownerId": `${req.body.admin_graphql_api_id}`,
           // "type": "single_line_text_field",
           "value": `${response.data.Data.QRString}`
+        },
+        {
+          "key": "invoice_id",
+          "namespace": "custom",
+          "ownerId": `${req.body.admin_graphql_api_id}`,
+          // "type": "single_line_text_field",
+          "value": `${response.data.Data.InvoiceID}`
         }
       ]
     }
