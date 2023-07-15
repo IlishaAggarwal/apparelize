@@ -40,13 +40,13 @@ app.post('/fulfillment', async (req, res) => {
   const BuyerCountryCode = req.body.destination.country_code;
   const BuyerRegistrationName = req.body.destination.first_name;
 
-  console.log('\nPOST Fulfillment created:');
-  console.log(`Fulfillment ID: ${InvoiceNo}\n`);
-  console.log(`BuyerStreetName : ${BuyerStreetName}\n`);
-  console.log(`BuyerCityName : ${BuyerCityName}\n`);
-  console.log(`BuyerPostalZone : ${BuyerPostalZone}\n`);
-  console.log(`BuyerCountryCode : ${BuyerCountryCode}\n`);
-  console.log(`BuyerRegistrationName : ${BuyerRegistrationName}\n`);
+  // console.log('\nPOST Fulfillment created:');
+  // console.log(`Fulfillment ID: ${InvoiceNo}\n`);
+  // console.log(`BuyerStreetName : ${BuyerStreetName}\n`);
+  // console.log(`BuyerCityName : ${BuyerCityName}\n`);
+  // console.log(`BuyerPostalZone : ${BuyerPostalZone}\n`);
+  // console.log(`BuyerCountryCode : ${BuyerCountryCode}\n`);
+  // console.log(`BuyerRegistrationName : ${BuyerRegistrationName}\n`);
 
   const jsonData =
 
