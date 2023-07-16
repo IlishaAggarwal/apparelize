@@ -1,0 +1,99 @@
+{
+    "Invoice": {
+      "Uniquekey": 9897634121,
+      "InvoiceNo": `${InvoiceNo}`,
+      "InvoiceDate": "2023-04-20",
+      "InvoiceTime": "23:50:09",
+      "InvoiceTypeCode": `${InvoiceTypeCode}`,
+      "IsThirdPartyInvoice": 0,
+      "IsNominalInvoice": 0,
+      "IsExportInvoice": 0,
+      "IsSummaryInvoice": 0,
+      "IsSelfBilledInvoice": 0,
+      "Remarks": "VAT-C1-VAT-C1-1172187349-0 Due Date 15-03-2022 /Installments SC-",
+      "InvoiceCurrencyCode": "SAR",
+      "TaxCurrencyCode": "SAR",
+      "PONumber": 1172187349,
+      "Reference": {
+        "OriginalInvoiceNumber": 123,
+        "OriginalInvoiceDate": "",
+        "InstructionNote": "DFF"
+      },
+      "ContractNumber": 114409666,
+      "SellerID": "",
+      "SellerIDType": "VAT",
+      "SellerGroupVatNo": "",
+      "SellerStreetName": "Thumamah Road",
+      "SellerAdditionalStreetName": "King Abdallah Road",
+      "SellerBuildingNumber": 1234,
+      "SellerPlotIdentification": 6771,
+      "SellerCityName": "Riyadh",
+      "SellerPostalZone": 11517,
+      "SellerCountrySubentity": "Saudi Arabia",
+      "SellerCitySubdivisionName": "Thumamah",
+      "SellerCountryCode": "SA",
+      "SellerVatNumber": 300189262500003,
+      "SellerRegistrationName": "Vestige Marketing Pvt. Ltd.",
+      "BuyerIDType": "",
+      "BuyerGroupVatNo": "",
+      "BuyerStreetName": `${BuyerStreetName}`,
+      "BuyerAdditionalStreetName": "-",
+      "BuyerBuildingNumber": "-",
+      "BuyerPlotIdentification": 1234,
+      "BuyerCityName": `${BuyerCityName}`,
+      "BuyerPostalZone": `${BuyerPostalZone}`,
+      "BuyerCountrySubentity": "SA",
+      "BuyerCitySubdivisionName": "-",
+      "BuyerCountryCode": "SA",
+      "BuyerVATNumber": 323456789123453,
+      "BuyerRegistrationName": `${BuyerRegistrationName}`,
+      "ConversionRate": 0,
+      "Delivery": {
+        "ActualDeliveryDate": "2022-03-09",
+        "LatestDeliveryDate": "2022-03-10"
+      },
+      "PaymentMeans": {
+        "PaymentMeansCode": 25,
+        "PaymentNote": "Certified cheque"
+      },
+      "InvoiceDeductions": {
+        "AllowanceChargeReason": "",
+        "Amount": 0,
+        "BaseAmount": 0,
+        "Percent": 0,
+        "TaxCategoryCode": "",
+        "TaxPercent": ""
+      },
+      "InvoiceLine": {
+        "Sno": 1,
+        "Quantity": 1,
+        "UoM": "EA",
+        "LineAmountWithoutVAT": 0,
+        "ItemName": "Premium القـسـط",
+        "SellerItemCode": "",
+        "BuyerItemCode": "",
+        "StandardItemCode": "",
+        "TaxCategoryCode": "S",
+        "TaxExemptionReasonCode": "",
+        "Percent": 15,
+        "ItemPrice": 0,
+        "ItemBaseQuantity": 1,
+        "ItemBaseUoM": "EA",
+        "Deductions": {
+          "Percent": 0,
+          "Amount": 0,
+          "BaseAmount": "",
+          "AllowanceChargeReason": ""
+        },
+        "Tax": {
+          "TaxAmount": 0
+        },
+        "ItemDeductions": {
+          "Percent": 0,
+          "Amount": 0,
+          "BaseAmount": 0,
+          "AllowanceChargeReason": ""
+        }
+      }
+    }
+  }

@@ -9,54 +9,33 @@ import * as fs from 'fs';
 global.Headers = global.Headers || Headers;
 
 const app = express();
-const port = 3000;
 
 app.use(bodyParser.json());
 
+const port = 3000;
 const shopName = 'zatca';
 const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';
 const password = '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';
 const endpoint = 'https://zatca.myshopify.com/admin/api/2023-07/graphql.json';
-
-
 const headers = {
   'Content-Type': 'application/json',
   'X-Shopify-Access-Token': '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',
   'Accept': 'application/json'
 };
-
 const graphQLClient = new GraphQLClient(endpoint, { headers });
 
-// Make the initial POST request
+// Order Fulfillment Completed
 app.post('/fulfillment', async (req, res) => {
-  const InvoiceNo = req.body.id;
-  const InvoiceDate = req.body.id;
-  const InvoiceTime = req.body.id;
-  const InvoiceTypeCode = 2;
-  // const InvoiceCurrencyCode = req.body.destination.country_code;
-  const BuyerStreetName = req.body.destination.address1;
-  const BuyerCityName = req.body.destination.city;
-  const BuyerPostalZone = req.body.destination.zip;
-  const BuyerCountryCode = req.body.destination.country_code;
-  const BuyerRegistrationName = req.body.destination.first_name;
-
-  // console.log('\nPOST Fulfillment created:');
-  // console.log(`Fulfillment ID: ${InvoiceNo}\n`);
-  // console.log(`BuyerStreetName : ${BuyerStreetName}\n`);
-  // console.log(`BuyerCityName : ${BuyerCityName}\n`);
-  // console.log(`BuyerPostalZone : ${BuyerPostalZone}\n`);
-  // console.log(`BuyerCountryCode : ${BuyerCountryCode}\n`);
-  // console.log(`BuyerRegistrationName : ${BuyerRegistrationName}\n`);
+  console.log(req.body, '\n');
 
   const jsonData =
-
   {
     "Invoice": {
       "Uniquekey": 9897634121,
-      "InvoiceNo": `${InvoiceNo}`,
+      "InvoiceNo": req.body.id,
       "InvoiceDate": "2023-04-20",
       "InvoiceTime": "23:50:09",
-      "InvoiceTypeCode": `${InvoiceTypeCode}`,
+      "InvoiceTypeCode": 2,
       "IsThirdPartyInvoice": 0,
       "IsNominalInvoice": 0,
       "IsExportInvoice": 0,
@@ -87,18 +66,17 @@ app.post('/fulfillment', async (req, res) => {
       "SellerVatNumber": 300189262500003,
       "SellerRegistrationName": "Vestige Marketing Pvt. Ltd.",
       "BuyerIDType": "",
-      "BuyerGroupVatNo": "",
-      "BuyerStreetName": `${BuyerStreetName}`,
+      "BuyerGroupVatNo": "123",
       "BuyerAdditionalStreetName": "-",
       "BuyerBuildingNumber": "-",
       "BuyerPlotIdentification": 1234,
-      "BuyerCityName": `${BuyerCityName}`,
-      "BuyerPostalZone": `${BuyerPostalZone}`,
+      "BuyerCityName": "Riyadh",
+      "BuyerPostalZone": 96325,
       "BuyerCountrySubentity": "SA",
       "BuyerCitySubdivisionName": "-",
       "BuyerCountryCode": "SA",
       "BuyerVATNumber": 323456789123453,
-      "BuyerRegistrationName": `${BuyerRegistrationName}`,
+      "BuyerRegistrationName": "BRName",
       "ConversionRate": 0,
       "Delivery": {
         "ActualDeliveryDate": "2022-03-09",
@@ -156,18 +134,12 @@ app.post('/fulfillment', async (req, res) => {
     const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
 
     // console.log('API Response', response.data);
-    console.log('KSA API');
-    console.log('API Response Invoice ID:', response.data.Data.InvoiceID);
-    console.log('API QR String:', response.data.Data.QRString, '\n');
+    console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID);
+
     const base64 = response.data.Data.QRString
-
     const buffer = Buffer.from(base64, "base64");
-
-    // Pipes an image with "new-path.jpg" as the name.
-    const order_id_qrimage_file = `${InvoiceNo}`
+    const order_id_qrimage_file = response.data.Data.InvoiceID
     const qrFile_path = order_id_qrimage_file + "_order_fulfillment.jpg";
-
-    fs.writeFileSync(qrFile_path, buffer);
     fs.writeFileSync(qrFile_path, buffer);
 
     // Use the extracted data to construct the GraphQL mutation
@@ -192,7 +164,6 @@ app.post('/fulfillment', async (req, res) => {
   }
 }
 `;
-
     const variables = {
       "metafields": [
         {
@@ -242,32 +213,22 @@ app.post('/fulfillment', async (req, res) => {
       console.error('Error updating metafield:', error);
     }
   } catch (ksaError) {
-    // Handle the KSA API POST error
     console.error('Error making the KSA API request:', ksaError);
   }
 });
 
-
-
-
 app.post('/refund', async (req, res) => {
-  const order = req.body;
-  const InvoiceNo = req.body.id;
-  console.log(order);
-
-  const InvoiceTypeCode = 6;
+  console.log(req.body);
   console.log(req.body.admin_graphql_api_id)
-  console.log('\nRefund created:');
-  console.log(`Refund ID: ${InvoiceNo}\n`);
 
   const jsonData =
   {
     "Invoice": {
       "Uniquekey": 9897634121,
-      "InvoiceNo": `${InvoiceNo}`,
+      "InvoiceNo": req.body.id,
       "InvoiceDate": "2023-04-20",
       "InvoiceTime": "23:50:09",
-      "InvoiceTypeCode": `${InvoiceTypeCode}`,
+      "InvoiceTypeCode": 6,
       "IsThirdPartyInvoice": 0,
       "IsNominalInvoice": 0,
       "IsExportInvoice": 0,
@@ -367,23 +328,16 @@ app.post('/refund', async (req, res) => {
     const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
 
     // console.log('API Response', response.data);
-    console.log('KSA API');
-    console.log('API Response Invoice ID:', response.data.Data.InvoiceID);
-    console.log('API QR String:', response.data.Data.QRString, '\n');
+    console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID);
+
     const base64 = response.data.Data.QRString
-
     const buffer = Buffer.from(base64, "base64");
-
-    // Pipes an image with "new-path.jpg" as the name.
-    const order_id_qrimage_file = `${InvoiceNo}`
+    const order_id_qrimage_file = response.data.Data.InvoiceID
     const qrFile_path = order_id_qrimage_file + "_order_refund.jpg";
-
     fs.writeFileSync(qrFile_path, buffer);
-    fs.writeFileSync(qrFile_path, buffer);
-
 
     // Use the extracted data to construct the GraphQL mutation
-    const metafieldKey = 'qr_code';
+    const metafieldKey = 'qr_image';
     const metafieldNamespace = 'custom'; // You can choose your desired namespace
 
     const mutation = gql`
@@ -408,18 +362,18 @@ app.post('/refund', async (req, res) => {
     const variables = {
       "metafields": [
         {
-          "key": "qr_code",
+          "key": "qr_image",
           "namespace": "custom",
-          "ownerId": `${ req.body.admin_graphql_api_id }`,
+          "ownerId": `${req.body.admin_graphql_api_id}`,
           // "type": "single_line_text_field",
-          "value": `${ response.data.Data.QRString } `
+          "value": qrFile_path
         },
         {
           "key": "invoice_id",
           "namespace": "custom",
-          "ownerId": `${ req.body.admin_graphql_api_id } `,
+          "ownerId": `${req.body.admin_graphql_api_id} `,
           // "type": "single_line_text_field",
-          "value": `${ response.data.Data.InvoiceID } `
+          "value": `${response.data.Data.InvoiceID} `
         }
       ]
     }
@@ -449,7 +403,7 @@ app.post('/refund', async (req, res) => {
     try {
       const graphqlResponse = await graphQLClient.request(mutation, variables);
       console.log(JSON.stringify(graphqlResponse))
-      // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
+      console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
     } catch (error) {
       console.error('Error updating metafield:', error);
     }
@@ -462,5 +416,5 @@ app.post('/refund', async (req, res) => {
 
 app.listen(port, async () => {
   // const url = await ngrok.connect(port);
-  console.log(`Server is running on ${ port } `);
+  console.log(`Server is running on ${port} `);
 });
