@@ -1,10 +1,12 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import Shopify from 'shopify-api-node';
 import axios from 'axios';
 import { GraphQLClient, gql } from 'graphql-request';
 import { Headers } from 'cross-fetch';
+import FormData from 'form-data';
 import * as fs from 'fs';
+import { promises as fsp } from 'fs';
+import { createReadStream } from 'fs';
 
 global.Headers = global.Headers || Headers;
 
@@ -13,9 +15,6 @@ const app = express();
 app.use(bodyParser.json());
 
 const port = 3000;
-const shopName = 'zatca';
-const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';
-const password = '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';
 const endpoint = 'https://zatca.myshopify.com/admin/api/2023-07/graphql.json';
 const headers = {
   'Content-Type': 'application/json',
@@ -24,9 +23,9 @@ const headers = {
 };
 const graphQLClient = new GraphQLClient(endpoint, { headers });
 
-// Order Fulfillment Completed
+// Order Fulfillment 
 app.post('/fulfillment', async (req, res) => {
-  console.log(req.body, '\n');
+  // console.log(req.body, '\n');
 
   const jsonData =
   {
@@ -134,7 +133,7 @@ app.post('/fulfillment', async (req, res) => {
     const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
 
     // console.log('API Response', response.data);
-    console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID);
+    console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID), '\n';
 
     const base64 = response.data.Data.QRString
     const buffer = Buffer.from(base64, "base64");
@@ -142,10 +141,54 @@ app.post('/fulfillment', async (req, res) => {
     const qrFile_path = order_id_qrimage_file + "_order_fulfillment.jpg";
     fs.writeFileSync(qrFile_path, buffer);
 
-    // Use the extracted data to construct the GraphQL mutation
-    const metafieldKey = 'qr_code';
-    const metafieldNamespace = 'custom'; // You can choose your desired namespace
+    const file = await fsp.readFile(qrFile_path); // filename to a staged target.
+    const fileSize = fs.statSync(qrFile_path).size;
 
+    const STAGED_UPLOADS_CREATE = gql`
+  mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+    stagedUploadsCreate(input: $input) {
+      stagedTargets {
+        resourceUrl
+        url
+        parameters {
+          name
+          value
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+    const stagedVariable = {
+      "input": [
+        {
+          "filename": qrFile_path,
+          "mimeType": "image/jpg",
+          "httpMethod": "POST",
+          "resource": "FILE"
+        },
+      ]
+    }
+
+
+    const fileCreate = gql`
+mutation fileCreate($files: [FileCreateInput!]!) {
+fileCreate(files: $files) {
+  files {
+    alt
+    createdAt
+    id
+  }
+  userErrors {
+      field
+      message
+    }
+}
+}
+`
     const mutation = gql`
     mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
     metafieldsSet(metafields: $metafields) {
@@ -164,62 +207,95 @@ app.post('/fulfillment', async (req, res) => {
   }
 }
 `;
-    const variables = {
-      "metafields": [
-        {
-          "key": "qr_code",
-          "namespace": "custom",
-          "ownerId": `${req.body.admin_graphql_api_id}`,
-          // "type": "single_line_text_field",
-          "value": `${response.data.Data.QRString}`
-        },
-        {
-          "key": "invoice_id",
-          "namespace": "custom",
-          "ownerId": `${req.body.admin_graphql_api_id}`,
-          // "type": "single_line_text_field",
-          "value": `${response.data.Data.InvoiceID}`
-        }
-      ]
-    }
 
-    const query = gql`
-    query {
-      orders({id: "gid://shopify/Order/5363696894225" }: ID!) {
-        edges {
-          node {
-            id
-            metafields(first: 10) {
-              edges {
-                node {
-                  namespace
-                  key
-                  value
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  `;
-
-    // Perform the GraphQL mutation to update the order's metafield
     try {
+      const stagedUploadsQueryResult = await graphQLClient.request(STAGED_UPLOADS_CREATE, stagedVariable);
+
+      const target =
+        stagedUploadsQueryResult.stagedUploadsCreate.stagedTargets[0];
+      const params = target.parameters; // Parameters contain all the sensitive info we'll need to interact with the aws bucket.
+      const url = target.url; // This is the url you'll use to post data to aws or google. It's a generic s3 url that when combined with the params sends your data to the right place.
+      const resourceUrl = target.resourceUrl; // This is the specific url that will contain your image data after you've uploaded the file to the aws staged target.
+
+      // Generate a form, add the necessary params and append the file.
+      // Must use the FormData library to create form data via the server.
+      const form = new FormData();
+
+      // Add each of the params we received from Shopify to the form. this will ensure our ajax request has the proper permissions and s3 location data.
+      params.forEach(({ name, value }) => {
+        form.append(name, value);
+      });
+
+      // Add the file to the form.
+      form.append("file", file);
+
+      // Headers
+      const headers = {
+        ...form.getHeaders(), // Pass the headers generated by FormData library. It'll contain content-type: multipart/form-data. It's necessary to specify this when posting to aws.
+      };
+      if (url.includes("amazon")) {
+        // Need to include the content length for Amazon uploads. If uploading to googleapis then the content-length header will break it.
+        headers["Content-Length"] = fileSize + 5000; // AWS requires content length to be included in the headers. This may not be automatically passed so you'll need to specify. And ... add 5000 to ensure the upload works. Or else there will be an error saying the data isn't formatted properly.
+      }
+      await axios.post(url, form, {
+        headers
+      });
+
+
+      const createFileVariables = {
+        files: {
+          alt: "QR Image",
+          contentType: "IMAGE",
+          originalSource: resourceUrl, // Pass the resource url we generated above as the original source. Shopify will do the work of parsing that url and adding it to files.
+        },
+      };
+
+      const fileCreateData = await graphQLClient.request(fileCreate, createFileVariables);
+      console.log("THISISFILEBODY");
+      console.log(JSON.stringify(fileCreateData))
+      const variables = {
+        "metafields": [
+          {
+            "key": "qr_image",
+            "namespace": "custom",
+            "ownerId": `${req.body.admin_graphql_api_id}`,
+            // "type": "file",
+            "value": fileCreateData.fileCreate.files[0].id 
+            
+          }, {
+            "key": "qr_code",
+            "namespace": "custom",
+            "ownerId": `${req.body.admin_graphql_api_id}`,
+            // "type": "single_line_text_field",
+            "value": `${response.data.Data.QRString}`
+          },
+          {
+            "key": "invoice_id",
+            "namespace": "custom",
+            "ownerId": `${req.body.admin_graphql_api_id}`,
+            // "type": "single_line_text_field",
+            "value": `${response.data.Data.InvoiceID}`
+          }
+        ]
+      }
+
       const graphqlResponse = await graphQLClient.request(mutation, variables);
       console.log(JSON.stringify(graphqlResponse))
       // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
+
+      return;
+
     } catch (error) {
       console.error('Error updating metafield:', error);
     }
+
   } catch (ksaError) {
     console.error('Error making the KSA API request:', ksaError);
   }
 });
 
+//Refund created
 app.post('/refund', async (req, res) => {
-  console.log(req.body);
-  console.log(req.body.admin_graphql_api_id)
 
   const jsonData =
   {
@@ -323,94 +399,169 @@ app.post('/refund', async (req, res) => {
   }
     ;
 
-  try {
-    // Make the KSA API request using the relevant data
-    const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
-
-    // console.log('API Response', response.data);
-    console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID);
-
-    const base64 = response.data.Data.QRString
-    const buffer = Buffer.from(base64, "base64");
-    const order_id_qrimage_file = response.data.Data.InvoiceID
-    const qrFile_path = order_id_qrimage_file + "_order_refund.jpg";
-    fs.writeFileSync(qrFile_path, buffer);
-
-    // Use the extracted data to construct the GraphQL mutation
-    const metafieldKey = 'qr_image';
-    const metafieldNamespace = 'custom'; // You can choose your desired namespace
-
-    const mutation = gql`
-    mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
-        metafieldsSet(metafields: $metafields) {
-    metafields {
-            key
-            namespace
+    try {
+      // Make the KSA API request using the relevant data
+      const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
+  
+      // console.log('API Response', response.data);
+      console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID), '\n';
+  
+      const base64 = response.data.Data.QRString
+      const buffer = Buffer.from(base64, "base64");
+      const order_id_qrimage_file = response.data.Data.InvoiceID
+      const qrFile_path = order_id_qrimage_file + "_order_refund.jpg";
+      fs.writeFileSync(qrFile_path, buffer);
+  
+      const file = await fsp.readFile(qrFile_path); // filename to a staged target.
+      const fileSize = fs.statSync(qrFile_path).size;
+  
+      const STAGED_UPLOADS_CREATE = gql`
+    mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets {
+          resourceUrl
+          url
+          parameters {
+            name
             value
-            createdAt
-            updatedAt
           }
-    userErrors {
-            field
-            message
-            code
-          }
+        }
+        userErrors {
+          field
+          message
         }
       }
-`;
-
-    const variables = {
-      "metafields": [
-        {
-          "key": "qr_image",
-          "namespace": "custom",
-          "ownerId": `${req.body.admin_graphql_api_id}`,
-          // "type": "single_line_text_field",
-          "value": qrFile_path
-        },
-        {
-          "key": "invoice_id",
-          "namespace": "custom",
-          "ownerId": `${req.body.admin_graphql_api_id} `,
-          // "type": "single_line_text_field",
-          "value": `${response.data.Data.InvoiceID} `
-        }
-      ]
     }
-
-    const query = gql`
-    query {
-    orders({ id: "gid://shopify/Order/5363696894225" }: ID!) {
-        edges {
-          node {
-          id
-          metafields(first: 10) {
-              edges {
-                node {
-                namespace
-                key
-                value
-              }
-            }
-          }
-        }
+  `;
+      const stagedVariable = {
+        "input": [
+          {
+            "filename": qrFile_path,
+            "mimeType": "image/jpg",
+            "httpMethod": "POST",
+            "resource": "FILE"
+          },
+        ]
+      }
+  
+  
+      const fileCreate = gql`
+  mutation fileCreate($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      alt
+      createdAt
+      id
+    }
+    userErrors {
+        field
+        message
+      }
+  }
+  }
+  `
+      const mutation = gql`
+      mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+      metafields {
+        key
+        namespace
+        value
+        createdAt
+        updatedAt
+      }
+      userErrors {
+        field
+        message
+        code
       }
     }
   }
   `;
-
-    // Perform the GraphQL mutation to update the order's metafield
-    try {
-      const graphqlResponse = await graphQLClient.request(mutation, variables);
-      console.log(JSON.stringify(graphqlResponse))
-      console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
-    } catch (error) {
-      console.error('Error updating metafield:', error);
+  
+      try {
+        const stagedUploadsQueryResult = await graphQLClient.request(STAGED_UPLOADS_CREATE, stagedVariable);
+  
+        const target =
+          stagedUploadsQueryResult.stagedUploadsCreate.stagedTargets[0];
+        const params = target.parameters; // Parameters contain all the sensitive info we'll need to interact with the aws bucket.
+        const url = target.url; // This is the url you'll use to post data to aws or google. It's a generic s3 url that when combined with the params sends your data to the right place.
+        const resourceUrl = target.resourceUrl; // This is the specific url that will contain your image data after you've uploaded the file to the aws staged target.
+  
+        // Generate a form, add the necessary params and append the file.
+        // Must use the FormData library to create form data via the server.
+        const form = new FormData();
+  
+        // Add each of the params we received from Shopify to the form. this will ensure our ajax request has the proper permissions and s3 location data.
+        params.forEach(({ name, value }) => {
+          form.append(name, value);
+        });
+  
+        // Add the file to the form.
+        form.append("file", file);
+  
+        // Headers
+        const headers = {
+          ...form.getHeaders(), // Pass the headers generated by FormData library. It'll contain content-type: multipart/form-data. It's necessary to specify this when posting to aws.
+        };
+        if (url.includes("amazon")) {
+          // Need to include the content length for Amazon uploads. If uploading to googleapis then the content-length header will break it.
+          headers["Content-Length"] = fileSize + 5000; // AWS requires content length to be included in the headers. This may not be automatically passed so you'll need to specify. And ... add 5000 to ensure the upload works. Or else there will be an error saying the data isn't formatted properly.
+        }
+        await axios.post(url, form, {
+          headers
+        });
+  
+  
+        const createFileVariables = {
+          files: {
+            alt: "QR Image",
+            contentType: "IMAGE",
+            originalSource: resourceUrl, // Pass the resource url we generated above as the original source. Shopify will do the work of parsing that url and adding it to files.
+          },
+        };
+  
+        const fileCreateData = await graphQLClient.request(fileCreate, createFileVariables);
+        console.log("THISISFILEBODY");
+        console.log(JSON.stringify(fileCreateData))
+        const variables = {
+          "metafields": [
+            {
+              "key": "qr_image",
+              "namespace": "custom",
+              "ownerId": `${req.body.admin_graphql_api_id}`,
+              // "type": "file",
+              "value": fileCreateData.fileCreate.files[0].id 
+            }, {
+              "key": "qr_code",
+              "namespace": "custom",
+              "ownerId": `${req.body.admin_graphql_api_id}`,
+              // "type": "single_line_text_field",
+              "value": `${response.data.Data.QRString}`
+            },
+            {
+              "key": "invoice_id",
+              "namespace": "custom",
+              "ownerId": `${req.body.admin_graphql_api_id}`,
+              // "type": "single_line_text_field",
+              "value": `${response.data.Data.InvoiceID}`
+            }
+          ]
+        }
+  
+        const graphqlResponse = await graphQLClient.request(mutation, variables);
+        console.log(JSON.stringify(graphqlResponse))
+        // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
+  
+        return;
+  
+      } catch (error) {
+        console.error('Error updating metafield:', error);
+      }
+  
+    } catch (ksaError) {
+      console.error('Error making the KSA API request:', ksaError);
     }
-  } catch (ksaError) {
-    // Handle the KSA API POST error
-    console.error('Error making the KSA API request:', ksaError);
-  }
 });
 
 
