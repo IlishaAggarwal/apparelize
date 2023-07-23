@@ -288,9 +288,11 @@ fileCreate(files: $files) {
     } catch (error) {
       console.error('Error updating metafield:', error);
     }
+    res.sendStatus(200);
 
   } catch (ksaError) {
     console.error('Error making the KSA API request:', ksaError);
+    res.sendStatus(500);
   }
 });
 
@@ -558,9 +560,10 @@ app.post('/refund', async (req, res) => {
       } catch (error) {
         console.error('Error updating metafield:', error);
       }
-  
+      res.sendStatus(200);
     } catch (ksaError) {
       console.error('Error making the KSA API request:', ksaError);
+      res.sendStatus(500);
     }
 });
 
