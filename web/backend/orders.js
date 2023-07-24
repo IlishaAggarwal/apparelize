@@ -7,6 +7,10 @@ import FormData from 'form-data';
 import * as fs from 'fs';
 import { promises as fsp } from 'fs';
 import { createReadStream } from 'fs';
+import pdfMake from "pdfmake/build/pdfmake.js";
+import pdfFonts from "pdfmake/build/vfs_fonts.js";
+import nodemailer from "nodemailer";
+import { Buffer } from "buffer";
 
 global.Headers = global.Headers || Headers;
 
@@ -18,7 +22,7 @@ const app = express();
 
 app.use(bodyParser.json());
 
-const port = 3000;
+const port = 3001;
 const endpoint = 'https://zatca.myshopify.com/admin/api/2023-07/graphql.json';
 const headers = {
   'Content-Type': 'application/json',
@@ -565,11 +569,144 @@ app.post('/refund', async (req, res) => {
         console.error('Error updating metafield:', error);
       }
       res.sendStatus(200);
+      generateAndSendInvoice().catch(console.error);
+
     } catch (ksaError) {
       console.error('Error making the KSA API request:', ksaError);
       res.sendStatus(500);
     }
+
 });
+
+
+
+
+
+
+
+
+
+
+
+// Set up pdfmake
+pdfMake.vfs = pdfFonts.pdfMake.vfs;
+
+// Function to generate the invoice PDF
+async function generateInvoicePdf(invoiceData) {
+  const { supplierName, supplierAddress, supplierVAT, customerName, customerAddress, customerVAT, issueDate, supplyDate, items, total, totalVAT, qrCodeBase64 } = invoiceData;
+
+  var docDefinition = {
+    content: [
+      { text: 'Tax Invoice', style: 'header' },
+      { text: `Supplier: ${supplierName}, ${supplierAddress}, VAT ID: ${supplierVAT}` },
+      { text: `Customer: ${customerName}, ${customerAddress}, VAT ID: ${customerVAT}` },
+      { text: `Issue Date: ${issueDate}` },
+      { text: `Supply Date: ${supplyDate}` },
+
+      { text: '\n' },  // Add some additional space
+
+      {
+        table: {
+          headerRows: 1,
+          body: [
+            ['Description', 'Quantity', 'Price', 'VAT'],  // This is the header row
+            // Add the items dynamically
+            ...items.map(item => [item.description, item.quantity, item.price, item.vat]),
+            // Add the total row
+            ['', '', 'Total', total],
+            ['', '', 'Total VAT', totalVAT]
+          ]
+        },
+        layout: 'lightHorizontalLines'
+      },
+
+      { text: '\n' },  // Add some additional space
+
+      { text: `VAT at the applicable rate is included.` },
+
+      { text: '\n' },  // Add some additional space
+
+      { image: qrCodeBase64, width: 100, alignment: 'right' },
+    ],
+
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true
+      }
+    }
+  };
+
+  const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+
+  return new Promise((resolve) => {
+    pdfDocGenerator.getBuffer((buffer) => {
+      resolve(buffer);
+    });
+  });
+}
+
+// Function to send the invoice PDF by email
+async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: 'aggarwalkartik55@gmail.com',
+      pass: 'wnrrujfcllbseweo'
+    }
+  });
+
+  let info = await transporter.sendMail({
+    from: '"My Company" <mycompany@example.com>',
+    to: recipientEmail,
+    subject: 'Your Invoice',
+    text: 'Please find attached your invoice.',
+    attachments: [
+      {
+        filename: 'invoice.pdf',
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }
+    ]
+  });
+
+  console.log(`Message sent: ${info.messageId}`);
+}
+
+
+// Usage example
+async function generateAndSendInvoice() {
+  const qrCodeBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+  const invoiceData = {
+    supplierName: 'Supplier Co.',
+    supplierAddress: '123 Supplier St, Supplier City, Supplier Country',
+    supplierVAT: 'VAT123',
+    customerName: 'Customer Co.',
+    customerAddress: '456 Customer Ave, Customer City, Customer Country',
+    customerVAT: 'VAT456',
+    issueDate: '2023-07-24',
+    supplyDate: '2023-07-23',
+    items: [
+      { description: 'Product 1', quantity: 2, price: '$20', vat: '$4' },
+      { description: 'Product 2', quantity: 1, price: '$10', vat: '$2' }
+    ],
+    total: '$30',
+    totalVAT: '$6',
+    qrCodeBase64: qrCodeBase64,
+  };
+
+  const recipientEmail = 'kartikaggarwal@berkeley.edu';
+
+  // Generate the invoice PDF
+  const pdfBuffer = await generateInvoicePdf(invoiceData);
+
+  // Send the invoice PDF by email
+  await sendInvoiceEmail(pdfBuffer, recipientEmail);
+
+  console.log('Invoice sent successfully');
+}
+
 
 
 app.listen(port, async () => {
