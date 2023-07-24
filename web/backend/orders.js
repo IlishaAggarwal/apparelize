@@ -10,6 +10,10 @@ import { createReadStream } from 'fs';
 
 global.Headers = global.Headers || Headers;
 
+const shopName = 'zatca';  
+const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';      
+const password = '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'; 
+
 const app = express();
 
 app.use(bodyParser.json());
