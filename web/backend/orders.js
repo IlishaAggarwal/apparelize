@@ -7,10 +7,17 @@ import FormData from 'form-data';
 import * as fs from 'fs';
 import { promises as fsp } from 'fs';
 import { createReadStream } from 'fs';
-import pdfMake from "pdfmake/build/pdfmake.js";
 import pdfFonts from "pdfmake/build/vfs_fonts.js";
 import nodemailer from "nodemailer";
 import { Buffer } from "buffer";
+import pkg from 'pdf-lib';
+const { PDFDocument, PDFEmbeddedFile } = pkg;
+import pdfMake from 'pdfmake/build/pdfmake.js';
+import vfsFonts from 'pdfmake/build/vfs_fonts.js';
+
+const { vfs } = vfsFonts.pdfMake;
+pdfMake.vfs = vfs;
+
 
 global.Headers = global.Headers || Headers;
 
@@ -141,7 +148,7 @@ app.post('/fulfillment', async (req, res) => {
     const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
 
     // console.log('API Response', response.data);
-    console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID), '\n';
+    console.log('KSA API Response:', response.data), '\n';
 
     const base64 = response.data.Data.QRString
     const qrCodeDataURL = "data:image/png;base64," + base64;
@@ -293,28 +300,51 @@ fileCreate(files: $files) {
 
       const graphqlResponse = await graphQLClient.request(mutation, variables);
       // console.log(JSON.stringify(graphqlResponse))
-      console.log(req.body)
+      let invoiceData = req.body;
 
-      const invoiceData = {
-        supplierName: 'Supplier Co.',
-        supplierAddress: '123 Supplier St, Supplier City, Supplier Country',
-        supplierVAT: 'VAT123',
-        customerName: `${req.body.billing_address.first_name}`,
-        customerAddress: '456 Customer Ave, Customer City, Customer Country',
-        customerVAT: 'VAT456',
-        issueDate: '2023-07-24',
-        supplyDate: '2023-07-23',
-        items: [
-          { description: 'Product 1', quantity: 2, price: '$20', vat: '$4' },
-          { description: 'Product 2', quantity: 1, price: '$10', vat: '$2' }
-        ],
-        total: '$30',
-        totalVAT: '$6',
-        qrCodeBase64: qrCodeDataURL,
+      const invoice = {
+        invoiceID: invoiceData.id,
+        invoiceDate: invoiceData.created_at,
+        dueDate: invoiceData.closed_at,
+        customerID: invoiceData.customer.id,
+        customerName: invoiceData.customer.first_name + ' ' + invoiceData.customer.last_name,
+        customerEmail: invoiceData.customer.email,
+        billingAddress: {
+          streetAddress: invoiceData.billing_address.address1,
+          city: invoiceData.billing_address.city,
+          state: invoiceData.billing_address.province,
+          country: invoiceData.billing_address.country,
+          postalCode: invoiceData.billing_address.zip,
+        },
+        shippingAddress: {
+          streetAddress: invoiceData.shipping_address.address1,
+          city: invoiceData.shipping_address.city,
+          state: invoiceData.shipping_address.province,
+          country: invoiceData.shipping_address.country,
+          postalCode: invoiceData.shipping_address.zip,
+        },
+        invoiceTotal: invoiceData.total_price,
+        currency: invoiceData.currency,
+        items: invoiceData.line_items.map(item => ({
+          productID: item.product_id,
+          productName: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          totalPrice: (item.quantity * item.price).toFixed(2),
+        })),
+        qrCodeBase64: qrCodeDataURL
+        
       };
+       let xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+      <invoice>
+          <invoiceID>12345</invoiceID>
+          <customerID>98765</customerID>
+      </invoice>`;
+
+      // console.log(invoice)
       console.log("Trying to send Email!")
-      console.log(req.body)
-      generateAndSendInvoice(invoiceData).catch(console.error);
+      // console.log(req.body)
+      generateAndSendInvoice(invoice, xmlData).catch(console.error);
 
       return;
 
@@ -443,7 +473,7 @@ app.post('/refund', async (req, res) => {
       const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
   
       // console.log('API Response', response.data);
-      console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID), '\n';
+      console.log('KSA API Respons:', response), '\n';
   
       const base64 = response.data.Data.QRString
       const buffer = Buffer.from(base64, "base64");
@@ -617,69 +647,105 @@ app.post('/refund', async (req, res) => {
 
 
 
+async function generateInvoicePdf(invoice, xmlData) {
 
-// Set up pdfmake
-pdfMake.vfs = pdfFonts.pdfMake.vfs;
-
-// Function to generate the invoice PDF
-async function generateInvoicePdf(invoiceData) {
-  const { supplierName, supplierAddress, supplierVAT, customerName, customerAddress, customerVAT, issueDate, supplyDate, items, total, totalVAT, qrCodeBase64 } = invoiceData;
-
-  var docDefinition = {
+   let docDefinition = {
     content: [
-      { text: 'Tax Invoice', style: 'header' },
-      { text: `Supplier: ${supplierName}, ${supplierAddress}, VAT ID: ${supplierVAT}` },
-      { text: `Customer: ${customerName}, ${customerAddress}, VAT ID: ${customerVAT}` },
-      { text: `Issue Date: ${issueDate}` },
-      { text: `Supply Date: ${supplyDate}` },
-
-      { text: '\n' },  // Add some additional space
-
-      {
-        table: {
-          headerRows: 1,
-          body: [
-            ['Description', 'Quantity', 'Price', 'VAT'],  // This is the header row
-            // Add the items dynamically
-            ...items.map(item => [item.description, item.quantity, item.price, item.vat]),
-            // Add the total row
-            ['', '', 'Total', total],
-            ['', '', 'Total VAT', totalVAT]
-          ]
+        {
+            columns: [
+                [
+                    { text: `Invoice ID: ${invoice.invoiceID}`, style: 'header' },
+                    { text: `Date: ${invoice.invoiceDate}` },
+                    { text: `Due: ${invoice.dueDate}` },
+                    { text: '\n' },
+                    { text: `Customer ID: ${invoice.customerID}` },
+                    { text: `Customer: ${invoice.customerName}` },
+                    { text: `Email: ${invoice.customerEmail}` },
+                    { text: '\n' },
+                    { text: 'Billing Address:', style: 'subheader' },
+                    { text: `${invoice.billingAddress.streetAddress}` },
+                    { text: `${invoice.billingAddress.city}` },
+                    { text: `${invoice.billingAddress.state}` },
+                    { text: `${invoice.billingAddress.country}` },
+                    { text: `${invoice.billingAddress.postalCode}` },
+                    { text: '\n' },
+                    { text: 'Shipping Address:', style: 'subheader' },
+                    { text: `${invoice.shippingAddress.streetAddress}` },
+                    { text: `${invoice.shippingAddress.city}` },
+                    { text: `${invoice.shippingAddress.state}` },
+                    { text: `${invoice.shippingAddress.country}` },
+                    { text: `${invoice.shippingAddress.postalCode}` },
+                ],
+                { image: invoice.qrCodeBase64, width: 130, margin: [0, 0, 20, 0], alignment: 'right' }
+            ],
+            columnGap: 10
         },
-        layout: 'lightHorizontalLines'
-      },
-
-      { text: '\n' },  // Add some additional space
-
-      { text: `VAT at the applicable rate is included.` },
-
-      { text: '\n' },  // Add some additional space
-
-      { image: qrCodeBase64, width: 100, alignment: 'right' },
+        { text: '\n' },
+        {
+            table: {
+                headerRows: 1,
+                widths: ['*', '*', '*', '*', '*'],
+                body: [
+                    ['Product ID', 'Product Name', 'Quantity', 'Price', 'Total Price'],
+                    ...invoice.items.map(item => [item.productID, item.productName, item.quantity, item.price, item.totalPrice]),
+                    ['', '', '', 'Total', invoice.invoiceTotal]
+                ]
+            },
+            layout: 'lightHorizontalLines'
+        }
     ],
 
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true
-      }
+        header: {
+            fontSize: 18,
+            bold: true
+        },
+        subheader: {
+            fontSize: 15,
+            bold: true
+        }
     }
-  };
+};
 
-  const pdfDocGenerator = pdfMake.createPdf(docDefinition);
 
- try {
-  return new Promise((resolve) => {
-    pdfDocGenerator.getBuffer((buffer) => {
-      resolve(buffer);
+
+    const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+
+    return new Promise((resolve, reject) => {
+        pdfDocGenerator.getBase64(async function (base64String) {
+            try {
+                // Load the PDF created by pdfmake with pdf-lib
+                const pdfBuffer = Buffer.from(base64String, 'base64');
+                const pdfDoc = await PDFDocument.load(pdfBuffer);
+
+                // Embed the XML data as an attachment
+            //     let xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+            // <root>
+            //     <element1>Text1</element1>
+            //     <element2>Text2</element2>
+            //     <element3>Text3</element3>
+            // </root>`;
+
+            // // Embed the XML data as an attachment
+            // const xmlBuffer = Buffer.from(xmlData);
+            // const xmlFile = PDFEmbeddedFile.from(pdfDoc, xmlBuffer, {
+            //     fileName: 'data.xml',
+            //     description: 'Some XML data',
+            //     mimeType: 'application/xml',
+            // });
+            // pdfDoc.attach(xmlFile);
+
+                // Save the modified PDF to a Buffer
+                const modifiedPdfBuffer = await pdfDoc.save();
+                resolve(modifiedPdfBuffer);
+            } catch (error) {
+                console.error('Error embedding XML:', error);
+                reject(error);
+            }
+        });
     });
-  });
-} catch (error) {
-  console.error('Error generating PDF buffer:', error);
 }
 
-}
 
 // Function to send the invoice PDF by email
 async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
@@ -692,9 +758,9 @@ async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
   });
 
   let info = await transporter.sendMail({
-    from: 'Shopify Store',
+    from: 'Apparelize Shopify Store',
     to: recipientEmail,
-    subject: 'Your Invoice',
+    subject: 'Your Invoice for your purchase at the Apparelize Shopify store',
     text: 'Please find attached your invoice.',
     attachments: [
       {
@@ -712,7 +778,7 @@ async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
 // Usage example
 async function generateAndSendInvoice(invoiceData) {
 
-  const recipientEmail = 'kartikaggarwal@berkeley.edu';
+  const recipientEmail = 'aggarwalmaneesh9@gmail.com';
 
   // Generate the invoice PDF
   const pdfBuffer = await generateInvoicePdf(invoiceData);
