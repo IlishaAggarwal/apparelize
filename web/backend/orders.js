@@ -564,7 +564,7 @@ app.post('/refund', async (req, res) => {
         // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
   
         return;
-  
+
       } catch (error) {
         console.error('Error updating metafield:', error);
       }
