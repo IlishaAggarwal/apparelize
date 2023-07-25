@@ -144,7 +144,11 @@ app.post('/fulfillment', async (req, res) => {
     console.log('KSA API Response, Invoice ID:', response.data.Data.InvoiceID), '\n';
 
     const base64 = response.data.Data.QRString
+    const qrCodeDataURL = "data:image/png;base64," + base64;
+
     const buffer = Buffer.from(base64, "base64");
+
+
     const order_id_qrimage_file = response.data.Data.InvoiceID
     const qrFile_path = order_id_qrimage_file + "_order_fulfillment.jpg";
     fs.writeFileSync(qrFile_path, buffer);
@@ -259,8 +263,8 @@ fileCreate(files: $files) {
       };
 
       const fileCreateData = await graphQLClient.request(fileCreate, createFileVariables);
-      console.log("THISISFILEBODY");
-      console.log(JSON.stringify(fileCreateData))
+      // console.log("THISISFILEBODY");
+      // console.log(JSON.stringify(fileCreateData))
       const variables = {
         "metafields": [
           {
@@ -288,15 +292,40 @@ fileCreate(files: $files) {
       }
 
       const graphqlResponse = await graphQLClient.request(mutation, variables);
-      console.log(JSON.stringify(graphqlResponse))
-      // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
+      // console.log(JSON.stringify(graphqlResponse))
+      console.log(req.body)
+
+      const invoiceData = {
+        supplierName: 'Supplier Co.',
+        supplierAddress: '123 Supplier St, Supplier City, Supplier Country',
+        supplierVAT: 'VAT123',
+        customerName: `${req.body.billing_address.first_name}`,
+        customerAddress: '456 Customer Ave, Customer City, Customer Country',
+        customerVAT: 'VAT456',
+        issueDate: '2023-07-24',
+        supplyDate: '2023-07-23',
+        items: [
+          { description: 'Product 1', quantity: 2, price: '$20', vat: '$4' },
+          { description: 'Product 2', quantity: 1, price: '$10', vat: '$2' }
+        ],
+        total: '$30',
+        totalVAT: '$6',
+        qrCodeBase64: qrCodeDataURL,
+      };
+      console.log("Trying to send Email!")
+      console.log(req.body)
+      generateAndSendInvoice(invoiceData).catch(console.error);
 
       return;
 
     } catch (error) {
       console.error('Error updating metafield:', error);
     }
+    finally {
     res.sendStatus(200);
+
+    }
+
 
   } catch (ksaError) {
     console.error('Error making the KSA API request:', ksaError);
@@ -418,6 +447,7 @@ app.post('/refund', async (req, res) => {
   
       const base64 = response.data.Data.QRString
       const buffer = Buffer.from(base64, "base64");
+      console.log(`Buffer ${buffer}`)
       const order_id_qrimage_file = response.data.Data.InvoiceID
       const qrFile_path = order_id_qrimage_file + "_order_refund.jpg";
       fs.writeFileSync(qrFile_path, buffer);
@@ -532,8 +562,8 @@ app.post('/refund', async (req, res) => {
         };
   
         const fileCreateData = await graphQLClient.request(fileCreate, createFileVariables);
-        console.log("THISISFILEBODY");
-        console.log(JSON.stringify(fileCreateData))
+        // console.log("THISISFILEBODY");
+        // console.log(JSON.stringify(fileCreateData))
         const variables = {
           "metafields": [
             {
@@ -568,8 +598,8 @@ app.post('/refund', async (req, res) => {
       } catch (error) {
         console.error('Error updating metafield:', error);
       }
-      res.sendStatus(200);
       generateAndSendInvoice().catch(console.error);
+      res.sendStatus(200);
 
     } catch (ksaError) {
       console.error('Error making the KSA API request:', ksaError);
@@ -639,11 +669,16 @@ async function generateInvoicePdf(invoiceData) {
 
   const pdfDocGenerator = pdfMake.createPdf(docDefinition);
 
+ try {
   return new Promise((resolve) => {
     pdfDocGenerator.getBuffer((buffer) => {
       resolve(buffer);
     });
   });
+} catch (error) {
+  console.error('Error generating PDF buffer:', error);
+}
+
 }
 
 // Function to send the invoice PDF by email
@@ -657,7 +692,7 @@ async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
   });
 
   let info = await transporter.sendMail({
-    from: '"My Company" <mycompany@example.com>',
+    from: 'Shopify Store',
     to: recipientEmail,
     subject: 'Your Invoice',
     text: 'Please find attached your invoice.',
@@ -675,26 +710,7 @@ async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
 
 
 // Usage example
-async function generateAndSendInvoice() {
-  const qrCodeBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-
-  const invoiceData = {
-    supplierName: 'Supplier Co.',
-    supplierAddress: '123 Supplier St, Supplier City, Supplier Country',
-    supplierVAT: 'VAT123',
-    customerName: 'Customer Co.',
-    customerAddress: '456 Customer Ave, Customer City, Customer Country',
-    customerVAT: 'VAT456',
-    issueDate: '2023-07-24',
-    supplyDate: '2023-07-23',
-    items: [
-      { description: 'Product 1', quantity: 2, price: '$20', vat: '$4' },
-      { description: 'Product 2', quantity: 1, price: '$10', vat: '$2' }
-    ],
-    total: '$30',
-    totalVAT: '$6',
-    qrCodeBase64: qrCodeBase64,
-  };
+async function generateAndSendInvoice(invoiceData) {
 
   const recipientEmail = 'kartikaggarwal@berkeley.edu';
 
