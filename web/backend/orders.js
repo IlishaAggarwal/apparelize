@@ -129,7 +129,7 @@ app.post('/fulfillment', async (req, res) => {
       },
       "InvoiceDeductions": {
         "AllowanceChargeReason": "",
-        "Amount": req.body.total_discounts,
+        "Amount": 0,
         "BaseAmount": 0,
         "Percent": 0,
         "TaxCategoryCode": "",
