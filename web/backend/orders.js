@@ -21,9 +21,9 @@ pdfMake.vfs = vfs;
 
 global.Headers = global.Headers || Headers;
 
-const shopName = 'zatca';  
-const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';      
-const password = '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'; 
+const shopName = 'zatca';
+const apiKey = '7bab45f566f95032d9612d70f6ae3fb8';
+const password = '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';
 
 const app = express();
 
@@ -40,15 +40,42 @@ const graphQLClient = new GraphQLClient(endpoint, { headers });
 
 // Order Fulfillment 
 app.post('/fulfillment', async (req, res) => {
-  // console.log(req.body, '\n');
+  // Get the current date and time
+  const currentDate = new Date();
+
+  // Extracting individual components from the Date object
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth() + 1; // Note: Months are 0-indexed, so we add 1 to get the correct month (January is 0, February is 1, and so on).
+  const day = currentDate.getDate();
+  const hours = currentDate.getHours();
+  const minutes = currentDate.getMinutes();
+  const seconds = currentDate.getSeconds();
+
+  // Store the current date and time in separate variables
+  const currentDateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+  const currentTimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+  // console.log("Current Date:", currentDateStr);
+  // console.log("Current Time:", currentTimeStr);
+
+  //actual delivery date
+  const timestamp = req.body.closed_at;
+
+  // Create a Date object from the timestamp string
+  const dateObj = new Date(timestamp);
+
+  // Extracting date and time from the Date object
+  const date = dateObj.toISOString().substring(0, 10); // "2023-07-31"
+
+  console.log(req.body, '\n');
 
   const jsonData =
   {
     "Invoice": {
       "Uniquekey": 9897634121,
       "InvoiceNo": req.body.id,
-      "InvoiceDate": "2023-04-20",
-      "InvoiceTime": "23:50:09",
+      "InvoiceDate": currentDateStr,
+      "InvoiceTime": currentTimeStr,
       "InvoiceTypeCode": 2,
       "IsThirdPartyInvoice": 0,
       "IsNominalInvoice": 0,
@@ -90,10 +117,10 @@ app.post('/fulfillment', async (req, res) => {
       "BuyerCitySubdivisionName": "-",
       "BuyerCountryCode": "SA",
       "BuyerVATNumber": 323456789123453,
-      "BuyerRegistrationName": "BRName",
+      "BuyerRegistrationName": req.body.customer.first_name,
       "ConversionRate": 0,
       "Delivery": {
-        "ActualDeliveryDate": "2022-03-09",
+        "ActualDeliveryDate": date,
         "LatestDeliveryDate": "2022-03-10"
       },
       "PaymentMeans": {
@@ -102,7 +129,7 @@ app.post('/fulfillment', async (req, res) => {
       },
       "InvoiceDeductions": {
         "AllowanceChargeReason": "",
-        "Amount": 0,
+        "Amount": req.body.total_discounts,
         "BaseAmount": 0,
         "Percent": 0,
         "TaxCategoryCode": "",
@@ -130,7 +157,7 @@ app.post('/fulfillment', async (req, res) => {
           "AllowanceChargeReason": ""
         },
         "Tax": {
-          "TaxAmount": 0
+          "TaxAmount": req.body.total_tax
         },
         "ItemDeductions": {
           "Percent": 0,
@@ -142,6 +169,8 @@ app.post('/fulfillment', async (req, res) => {
     }
   }
     ;
+
+  console.log(jsonData)
 
   try {
     // Make the KSA API request using the relevant data
@@ -279,8 +308,8 @@ fileCreate(files: $files) {
             "namespace": "custom",
             "ownerId": `${req.body.admin_graphql_api_id}`,
             // "type": "file",
-            "value": fileCreateData.fileCreate.files[0].id 
-            
+            "value": fileCreateData.fileCreate.files[0].id
+
           }, {
             "key": "qr_code",
             "namespace": "custom",
@@ -333,9 +362,9 @@ fileCreate(files: $files) {
           totalPrice: (item.quantity * item.price).toFixed(2),
         })),
         qrCodeBase64: qrCodeDataURL
-        
+
       };
-       let xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+      let xmlData = `<?xml version="1.0" encoding="UTF-8"?>
       <invoice>
           <invoiceID>12345</invoiceID>
           <customerID>98765</customerID>
@@ -346,15 +375,15 @@ fileCreate(files: $files) {
       // console.log(req.body)
       generateAndSendInvoice(invoice, xmlData).catch(console.error);
 
-      return;
+      // return;
 
     } catch (error) {
       console.error('Error updating metafield:', error);
     }
-    finally {
+    // finally {
     res.sendStatus(200);
 
-    }
+    // }
 
 
   } catch (ksaError) {
@@ -468,24 +497,24 @@ app.post('/refund', async (req, res) => {
   }
     ;
 
-    try {
-      // Make the KSA API request using the relevant data
-      const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
-  
-      // console.log('API Response', response.data);
-      console.log('KSA API Respons:', response), '\n';
-  
-      const base64 = response.data.Data.QRString
-      const buffer = Buffer.from(base64, "base64");
-      console.log(`Buffer ${buffer}`)
-      const order_id_qrimage_file = response.data.Data.InvoiceID
-      const qrFile_path = order_id_qrimage_file + "_order_refund.jpg";
-      fs.writeFileSync(qrFile_path, buffer);
-  
-      const file = await fsp.readFile(qrFile_path); // filename to a staged target.
-      const fileSize = fs.statSync(qrFile_path).size;
-  
-      const STAGED_UPLOADS_CREATE = gql`
+  try {
+    // Make the KSA API request using the relevant data
+    const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
+
+    // console.log('API Response', response.data);
+    console.log('KSA API Respons:', response), '\n';
+
+    const base64 = response.data.Data.QRString
+    const buffer = Buffer.from(base64, "base64");
+    console.log(`Buffer ${buffer}`)
+    const order_id_qrimage_file = response.data.Data.InvoiceID
+    const qrFile_path = order_id_qrimage_file + "_order_refund.jpg";
+    fs.writeFileSync(qrFile_path, buffer);
+
+    const file = await fsp.readFile(qrFile_path); // filename to a staged target.
+    const fileSize = fs.statSync(qrFile_path).size;
+
+    const STAGED_UPLOADS_CREATE = gql`
     mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
       stagedUploadsCreate(input: $input) {
         stagedTargets {
@@ -503,19 +532,19 @@ app.post('/refund', async (req, res) => {
       }
     }
   `;
-      const stagedVariable = {
-        "input": [
-          {
-            "filename": qrFile_path,
-            "mimeType": "image/jpg",
-            "httpMethod": "POST",
-            "resource": "FILE"
-          },
-        ]
-      }
-  
-  
-      const fileCreate = gql`
+    const stagedVariable = {
+      "input": [
+        {
+          "filename": qrFile_path,
+          "mimeType": "image/jpg",
+          "httpMethod": "POST",
+          "resource": "FILE"
+        },
+      ]
+    }
+
+
+    const fileCreate = gql`
   mutation fileCreate($files: [FileCreateInput!]!) {
   fileCreate(files: $files) {
     files {
@@ -530,7 +559,7 @@ app.post('/refund', async (req, res) => {
   }
   }
   `
-      const mutation = gql`
+    const mutation = gql`
       mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
       metafields {
@@ -548,93 +577,93 @@ app.post('/refund', async (req, res) => {
     }
   }
   `;
-  
-      try {
-        const stagedUploadsQueryResult = await graphQLClient.request(STAGED_UPLOADS_CREATE, stagedVariable);
-  
-        const target =
-          stagedUploadsQueryResult.stagedUploadsCreate.stagedTargets[0];
-        const params = target.parameters; // Parameters contain all the sensitive info we'll need to interact with the aws bucket.
-        const url = target.url; // This is the url you'll use to post data to aws or google. It's a generic s3 url that when combined with the params sends your data to the right place.
-        const resourceUrl = target.resourceUrl; // This is the specific url that will contain your image data after you've uploaded the file to the aws staged target.
-  
-        // Generate a form, add the necessary params and append the file.
-        // Must use the FormData library to create form data via the server.
-        const form = new FormData();
-  
-        // Add each of the params we received from Shopify to the form. this will ensure our ajax request has the proper permissions and s3 location data.
-        params.forEach(({ name, value }) => {
-          form.append(name, value);
-        });
-  
-        // Add the file to the form.
-        form.append("file", file);
-  
-        // Headers
-        const headers = {
-          ...form.getHeaders(), // Pass the headers generated by FormData library. It'll contain content-type: multipart/form-data. It's necessary to specify this when posting to aws.
-        };
-        if (url.includes("amazon")) {
-          // Need to include the content length for Amazon uploads. If uploading to googleapis then the content-length header will break it.
-          headers["Content-Length"] = fileSize + 5000; // AWS requires content length to be included in the headers. This may not be automatically passed so you'll need to specify. And ... add 5000 to ensure the upload works. Or else there will be an error saying the data isn't formatted properly.
-        }
-        await axios.post(url, form, {
-          headers
-        });
-  
-  
-        const createFileVariables = {
-          files: {
-            alt: "QR Image",
-            contentType: "IMAGE",
-            originalSource: resourceUrl, // Pass the resource url we generated above as the original source. Shopify will do the work of parsing that url and adding it to files.
-          },
-        };
-  
-        const fileCreateData = await graphQLClient.request(fileCreate, createFileVariables);
-        // console.log("THISISFILEBODY");
-        // console.log(JSON.stringify(fileCreateData))
-        const variables = {
-          "metafields": [
-            {
-              "key": "qr_image",
-              "namespace": "custom",
-              "ownerId": `${req.body.admin_graphql_api_id}`,
-              // "type": "file",
-              "value": fileCreateData.fileCreate.files[0].id 
-            }, {
-              "key": "qr_code",
-              "namespace": "custom",
-              "ownerId": `${req.body.admin_graphql_api_id}`,
-              // "type": "single_line_text_field",
-              "value": `${response.data.Data.QRString}`
-            },
-            {
-              "key": "invoice_id",
-              "namespace": "custom",
-              "ownerId": `${req.body.admin_graphql_api_id}`,
-              // "type": "single_line_text_field",
-              "value": `${response.data.Data.InvoiceID}`
-            }
-          ]
-        }
-  
-        const graphqlResponse = await graphQLClient.request(mutation, variables);
-        console.log(JSON.stringify(graphqlResponse))
-        // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
-  
-        return;
 
-      } catch (error) {
-        console.error('Error updating metafield:', error);
+    try {
+      const stagedUploadsQueryResult = await graphQLClient.request(STAGED_UPLOADS_CREATE, stagedVariable);
+
+      const target =
+        stagedUploadsQueryResult.stagedUploadsCreate.stagedTargets[0];
+      const params = target.parameters; // Parameters contain all the sensitive info we'll need to interact with the aws bucket.
+      const url = target.url; // This is the url you'll use to post data to aws or google. It's a generic s3 url that when combined with the params sends your data to the right place.
+      const resourceUrl = target.resourceUrl; // This is the specific url that will contain your image data after you've uploaded the file to the aws staged target.
+
+      // Generate a form, add the necessary params and append the file.
+      // Must use the FormData library to create form data via the server.
+      const form = new FormData();
+
+      // Add each of the params we received from Shopify to the form. this will ensure our ajax request has the proper permissions and s3 location data.
+      params.forEach(({ name, value }) => {
+        form.append(name, value);
+      });
+
+      // Add the file to the form.
+      form.append("file", file);
+
+      // Headers
+      const headers = {
+        ...form.getHeaders(), // Pass the headers generated by FormData library. It'll contain content-type: multipart/form-data. It's necessary to specify this when posting to aws.
+      };
+      if (url.includes("amazon")) {
+        // Need to include the content length for Amazon uploads. If uploading to googleapis then the content-length header will break it.
+        headers["Content-Length"] = fileSize + 5000; // AWS requires content length to be included in the headers. This may not be automatically passed so you'll need to specify. And ... add 5000 to ensure the upload works. Or else there will be an error saying the data isn't formatted properly.
       }
-      generateAndSendInvoice().catch(console.error);
-      res.sendStatus(200);
+      await axios.post(url, form, {
+        headers
+      });
 
-    } catch (ksaError) {
-      console.error('Error making the KSA API request:', ksaError);
-      res.sendStatus(500);
+
+      const createFileVariables = {
+        files: {
+          alt: "QR Image",
+          contentType: "IMAGE",
+          originalSource: resourceUrl, // Pass the resource url we generated above as the original source. Shopify will do the work of parsing that url and adding it to files.
+        },
+      };
+
+      const fileCreateData = await graphQLClient.request(fileCreate, createFileVariables);
+      // console.log("THISISFILEBODY");
+      // console.log(JSON.stringify(fileCreateData))
+      const variables = {
+        "metafields": [
+          {
+            "key": "qr_image",
+            "namespace": "custom",
+            "ownerId": `${req.body.admin_graphql_api_id}`,
+            // "type": "file",
+            "value": fileCreateData.fileCreate.files[0].id
+          }, {
+            "key": "qr_code",
+            "namespace": "custom",
+            "ownerId": `${req.body.admin_graphql_api_id}`,
+            // "type": "single_line_text_field",
+            "value": `${response.data.Data.QRString}`
+          },
+          {
+            "key": "invoice_id",
+            "namespace": "custom",
+            "ownerId": `${req.body.admin_graphql_api_id}`,
+            // "type": "single_line_text_field",
+            "value": `${response.data.Data.InvoiceID}`
+          }
+        ]
+      }
+
+      const graphqlResponse = await graphQLClient.request(mutation, variables);
+      console.log(JSON.stringify(graphqlResponse))
+      // console.log('Metafield successfully updated:', graphqlResponse.metafieldUpsert.metafield);
+
+      return;
+
+    } catch (error) {
+      console.error('Error updating metafield:', error);
     }
+    generateAndSendInvoice().catch(console.error);
+    res.sendStatus(200);
+
+  } catch (ksaError) {
+    console.error('Error making the KSA API request:', ksaError);
+    res.sendStatus(500);
+  }
 
 });
 
@@ -649,101 +678,101 @@ app.post('/refund', async (req, res) => {
 
 async function generateInvoicePdf(invoice, xmlData) {
 
-   let docDefinition = {
+  let docDefinition = {
     content: [
-        {
-            columns: [
-                [
-                    { text: `Invoice ID: ${invoice.invoiceID}`, style: 'header' },
-                    { text: `Date: ${invoice.invoiceDate}` },
-                    { text: `Due: ${invoice.dueDate}` },
-                    { text: '\n' },
-                    { text: `Customer ID: ${invoice.customerID}` },
-                    { text: `Customer: ${invoice.customerName}` },
-                    { text: `Email: ${invoice.customerEmail}` },
-                    { text: '\n' },
-                    { text: 'Billing Address:', style: 'subheader' },
-                    { text: `${invoice.billingAddress.streetAddress}` },
-                    { text: `${invoice.billingAddress.city}` },
-                    { text: `${invoice.billingAddress.state}` },
-                    { text: `${invoice.billingAddress.country}` },
-                    { text: `${invoice.billingAddress.postalCode}` },
-                    { text: '\n' },
-                    { text: 'Shipping Address:', style: 'subheader' },
-                    { text: `${invoice.shippingAddress.streetAddress}` },
-                    { text: `${invoice.shippingAddress.city}` },
-                    { text: `${invoice.shippingAddress.state}` },
-                    { text: `${invoice.shippingAddress.country}` },
-                    { text: `${invoice.shippingAddress.postalCode}` },
-                ],
-                { image: invoice.qrCodeBase64, width: 130, margin: [0, 0, 20, 0], alignment: 'right' }
-            ],
-            columnGap: 10
+      {
+        columns: [
+          [
+            { text: `Invoice ID: ${invoice.invoiceID}`, style: 'header' },
+            { text: `Date: ${invoice.invoiceDate}` },
+            { text: `Due: ${invoice.dueDate}` },
+            { text: '\n' },
+            { text: `Customer ID: ${invoice.customerID}` },
+            { text: `Customer: ${invoice.customerName}` },
+            { text: `Email: ${invoice.customerEmail}` },
+            { text: '\n' },
+            { text: 'Billing Address:', style: 'subheader' },
+            { text: `${invoice.billingAddress.streetAddress}` },
+            { text: `${invoice.billingAddress.city}` },
+            { text: `${invoice.billingAddress.state}` },
+            { text: `${invoice.billingAddress.country}` },
+            { text: `${invoice.billingAddress.postalCode}` },
+            { text: '\n' },
+            { text: 'Shipping Address:', style: 'subheader' },
+            { text: `${invoice.shippingAddress.streetAddress}` },
+            { text: `${invoice.shippingAddress.city}` },
+            { text: `${invoice.shippingAddress.state}` },
+            { text: `${invoice.shippingAddress.country}` },
+            { text: `${invoice.shippingAddress.postalCode}` },
+          ],
+          { image: invoice.qrCodeBase64, width: 130, margin: [0, 0, 20, 0], alignment: 'right' }
+        ],
+        columnGap: 10
+      },
+      { text: '\n' },
+      {
+        table: {
+          headerRows: 1,
+          widths: ['*', '*', '*', '*', '*'],
+          body: [
+            ['Product ID', 'Product Name', 'Quantity', 'Price', 'Total Price'],
+            ...invoice.items.map(item => [item.productID, item.productName, item.quantity, item.price, item.totalPrice]),
+            ['', '', '', 'Total', invoice.invoiceTotal]
+          ]
         },
-        { text: '\n' },
-        {
-            table: {
-                headerRows: 1,
-                widths: ['*', '*', '*', '*', '*'],
-                body: [
-                    ['Product ID', 'Product Name', 'Quantity', 'Price', 'Total Price'],
-                    ...invoice.items.map(item => [item.productID, item.productName, item.quantity, item.price, item.totalPrice]),
-                    ['', '', '', 'Total', invoice.invoiceTotal]
-                ]
-            },
-            layout: 'lightHorizontalLines'
-        }
+        layout: 'lightHorizontalLines'
+      }
     ],
 
     styles: {
-        header: {
-            fontSize: 18,
-            bold: true
-        },
-        subheader: {
-            fontSize: 15,
-            bold: true
-        }
+      header: {
+        fontSize: 18,
+        bold: true
+      },
+      subheader: {
+        fontSize: 15,
+        bold: true
+      }
     }
-};
+  };
 
 
 
-    const pdfDocGenerator = pdfMake.createPdf(docDefinition);
+  const pdfDocGenerator = pdfMake.createPdf(docDefinition);
 
-    return new Promise((resolve, reject) => {
-        pdfDocGenerator.getBase64(async function (base64String) {
-            try {
-                // Load the PDF created by pdfmake with pdf-lib
-                const pdfBuffer = Buffer.from(base64String, 'base64');
-                const pdfDoc = await PDFDocument.load(pdfBuffer);
+  return new Promise((resolve, reject) => {
+    pdfDocGenerator.getBase64(async function (base64String) {
+      try {
+        // Load the PDF created by pdfmake with pdf-lib
+        const pdfBuffer = Buffer.from(base64String, 'base64');
+        const pdfDoc = await PDFDocument.load(pdfBuffer);
 
-                // Embed the XML data as an attachment
-            //     let xmlData = `<?xml version="1.0" encoding="UTF-8"?>
-            // <root>
-            //     <element1>Text1</element1>
-            //     <element2>Text2</element2>
-            //     <element3>Text3</element3>
-            // </root>`;
+        // Embed the XML data as an attachment
+        //     let xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+        // <root>
+        //     <element1>Text1</element1>
+        //     <element2>Text2</element2>
+        //     <element3>Text3</element3>
+        // </root>`;
 
-            // // Embed the XML data as an attachment
-            // const xmlBuffer = Buffer.from(xmlData);
-            // const xmlFile = PDFEmbeddedFile.from(pdfDoc, xmlBuffer, {
-            //     fileName: 'data.xml',
-            //     description: 'Some XML data',
-            //     mimeType: 'application/xml',
-            // });
-            // pdfDoc.attach(xmlFile);
+        // // Embed the XML data as an attachment
+        // const xmlBuffer = Buffer.from(xmlData);
+        // const xmlFile = PDFEmbeddedFile.from(pdfDoc, xmlBuffer, {
+        //     fileName: 'data.xml',
+        //     description: 'Some XML data',
+        //     mimeType: 'application/xml',
+        // });
+        // pdfDoc.attach(xmlFile);
 
-                // Save the modified PDF to a Buffer
-                const modifiedPdfBuffer = await pdfDoc.save();
-                resolve(modifiedPdfBuffer);
-            } catch (error) {
-                console.error('Error embedding XML:', error);
-                reject(error);
-            }
-        });
+        // Save the modified PDF to a Buffer
+        const modifiedPdfBuffer = await pdfDoc.save();
+        resolve(modifiedPdfBuffer);
+      } catch (error) {
+        console.error('Error embedding XML:', error);
+        reject(error);
+      }
     });
+  });
 }
 
 
@@ -778,7 +807,7 @@ async function sendInvoiceEmail(pdfBuffer, recipientEmail) {
 // Usage example
 async function generateAndSendInvoice(invoiceData) {
 
-  const recipientEmail = 'aggarwalmaneesh9@gmail.com';
+  const recipientEmail = 'ilisha.aggarwal30@gmail.com';
 
   // Generate the invoice PDF
   const pdfBuffer = await generateInvoicePdf(invoiceData);
@@ -788,6 +817,50 @@ async function generateAndSendInvoice(invoiceData) {
 
   console.log('Invoice sent successfully');
 }
+
+// // Customer
+// app.post('/customer', async (req, res) => {
+//   const { customer } = req.body;
+//   console.log(req.body)
+//   const vatNumber = customer.metafields.custom.vat_number;
+//   try {
+//     const customer_creation = gql`
+//     mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+//     metafieldsSet(metafields: $metafields) {
+//     metafields {
+//       key
+//       namespace
+//       value
+//       createdAt
+//       updatedAt
+//     }
+//     userErrors {
+//       field
+//       message
+//       code
+//     }
+//   }
+// }
+// `;
+//     const variables = {
+//       "metafields": [
+//         {
+//           "key": "vat_number",
+//           "namespace": "custom",
+//           "ownerId": customer.id,
+//           "value": vatNumber
+//         }
+//       ]
+//     }
+//     const graphqlResponse = await graphQLClient.request(customer_creation, variables);
+//     // console.log(JSON.stringify(graphqlResponse))
+//     res.sendStatus(200);
+//   } catch (e) {
+//     console.error('Error making the update request:', e);
+//     res.sendStatus(500);
+//   }
+// });
+
 
 
 
