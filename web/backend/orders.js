@@ -6,8 +6,6 @@ import { Headers } from 'cross-fetch';
 import FormData from 'form-data';
 import * as fs from 'fs';
 import { promises as fsp } from 'fs';
-import { createReadStream } from 'fs';
-import pdfFonts from "pdfmake/build/vfs_fonts.js";
 import nodemailer from "nodemailer";
 import { Buffer } from "buffer";
 import pkg from 'pdf-lib';
@@ -55,9 +53,6 @@ app.post('/fulfillment', async (req, res) => {
   const currentDateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
   const currentTimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-  // console.log("Current Date:", currentDateStr);
-  // console.log("Current Time:", currentTimeStr);
-
   //actual delivery date
   const timestamp = req.body.closed_at;
 
@@ -66,8 +61,50 @@ app.post('/fulfillment', async (req, res) => {
 
   // Extracting date and time from the Date object
   const date = dateObj.toISOString().substring(0, 10); // "2023-07-31"
-
+  console.log('zatcaaaaa');
   console.log(req.body, '\n');
+
+   // Assuming the order details are in req.body.order
+   const lineItems = req.body.line_items;
+  
+   // Use the map function to dynamically generate InvoiceLine objects
+   const invoiceLines = lineItems.map((lineItem, index) => {
+    console.log(lineItem.tax_lines[0].price_set.presentment_money.amount)
+     return {
+        "Sno": index + 1,
+        "Quantity": lineItem.quantity,
+        "UoM": "EA",
+        "LineAmountWithoutVAT": parseFloat(lineItem.price),
+        "ItemName": lineItem.name,
+        "SellerItemCode": "",
+        "BuyerItemCode": "",
+        "StandardItemCode": "",
+        "TaxCategoryCode": "S",
+        "TaxExemptionReasonCode": "",
+        "Percent": 15,
+        "ItemPrice": parseFloat(lineItem.price),
+        "ItemBaseQuantity": lineItem.quantity,
+        "ItemBaseUoM": "EA",
+        "Deductions": { 
+          "Percent": 0,
+          "Amount": 0,
+          "BaseAmount": "",
+          "AllowanceChargeReason": ""
+        },
+        "Tax": {
+          "TaxAmount": lineItem.tax_lines[0].price_set.presentment_money.amount
+        },
+        "ItemDeductions": {  //unit price deductions on each item
+          "Percent": 0,
+          "Amount": 0,
+          "BaseAmount": parseFloat(lineItem.price),
+          "AllowanceChargeReason": ""
+        }
+
+     };
+
+      
+   });
 
   const jsonData =
   {
@@ -105,7 +142,7 @@ app.post('/fulfillment', async (req, res) => {
       "SellerCitySubdivisionName": "Thumamah",
       "SellerCountryCode": "SA",
       "SellerVatNumber": 300189262500003,
-      "SellerRegistrationName": "Vestige Marketing Pvt. Ltd.",
+      "SellerRegistrationName": "KAUST",
       "BuyerIDType": "",
       "BuyerGroupVatNo": "123",
       "BuyerAdditionalStreetName": "-",
@@ -127,7 +164,7 @@ app.post('/fulfillment', async (req, res) => {
         "PaymentMeansCode": 25,
         "PaymentNote": "Certified cheque"
       },
-      "InvoiceDeductions": {
+      "InvoiceDeductions": { //header level discount, total discount on the invoice
         "AllowanceChargeReason": "",
         "Amount": 0,
         "BaseAmount": 0,
@@ -135,49 +172,18 @@ app.post('/fulfillment', async (req, res) => {
         "TaxCategoryCode": "",
         "TaxPercent": ""
       },
-      "InvoiceLine": {
-        "Sno": 1,
-        "Quantity": 1,
-        "UoM": "EA",
-        "LineAmountWithoutVAT": 0,
-        "ItemName": "Premium القـسـط",
-        "SellerItemCode": "",
-        "BuyerItemCode": "",
-        "StandardItemCode": "",
-        "TaxCategoryCode": "S",
-        "TaxExemptionReasonCode": "",
-        "Percent": 15,
-        "ItemPrice": 0,
-        "ItemBaseQuantity": 1,
-        "ItemBaseUoM": "EA",
-        "Deductions": {
-          "Percent": 0,
-          "Amount": 0,
-          "BaseAmount": "",
-          "AllowanceChargeReason": ""
-        },
-        "Tax": {
-          "TaxAmount": req.body.total_tax
-        },
-        "ItemDeductions": {
-          "Percent": 0,
-          "Amount": 0,
-          "BaseAmount": 0,
-          "AllowanceChargeReason": ""
-        }
-      }
+      "InvoiceLine": invoiceLines
     }
   }
     ;
 
-  console.log(jsonData)
 
   try {
     // Make the KSA API request using the relevant data
     const response = await axios.post('http://103.181.108.101/ksa/v1.01/GenEinvoice?mappingName=KSAEInvoiceMapping&getXML=1&getQRImage=1', jsonData, { headers });
 
     // console.log('API Response', response.data);
-    console.log('KSA API Response:', response.data), '\n';
+    // console.log('KSA API Response:', response.data), '\n';
 
     const base64 = response.data.Data.QRString
     const qrCodeDataURL = "data:image/png;base64," + base64;
@@ -421,7 +427,7 @@ app.post('/refund', async (req, res) => {
       "SellerID": "",
       "SellerIDType": "VAT",
       "SellerGroupVatNo": "",
-      "SellerStreetName": "Thumamah Road",
+      "SellerStreetName": "Thumamah Road", //arabic with pipe separator
       "SellerAdditionalStreetName": "King Abdallah Road",
       "SellerBuildingNumber": 1234,
       "SellerPlotIdentification": 6771,
@@ -431,7 +437,7 @@ app.post('/refund', async (req, res) => {
       "SellerCitySubdivisionName": "Thumamah",
       "SellerCountryCode": "SA",
       "SellerVatNumber": 300189262500003,
-      "SellerRegistrationName": "Vestige Marketing Pvt. Ltd.",
+      "SellerRegistrationName": "King Abdullah",
       "BuyerIDType": "",
       "BuyerGroupVatNo": "",
       "BuyerStreetName": "123 Refund Street",
